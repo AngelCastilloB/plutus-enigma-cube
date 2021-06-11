@@ -10,8 +10,10 @@ License-files:       LICENSE
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Enigma.Seals
+  exposed-modules:     Enigma.Definitions.Seals
                        Enigma.Test
+                       Enigma.OffChain
+                       Enigma.OnChain
   build-depends:       aeson
                      , base ^>=4.14.1.0
                      , containers
