@@ -85,7 +85,7 @@ import           Wallet.Emulator.Wallet
 import           Plutus.Trace.Emulator  as Emulator
 import           Data.Void              (Void)
 import           Prelude                  (Semigroup (..), foldMap)
-import           Enigma.Definitions.Seals  as Seals
+import           Enigma.Seals  as Seals
 import qualified Ledger.Tx                as Tx
 import qualified Data.ByteString.Base16 as BS16 (decode, encode)
 import qualified Data.ByteString        as BS

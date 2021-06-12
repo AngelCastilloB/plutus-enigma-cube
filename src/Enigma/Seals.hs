@@ -27,7 +27,7 @@
 {-# OPTIONS_GHC -Wno-identities #-}
 {-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
 
-module Enigma.Definitions.Seals(
+module Enigma.Seals(
       Seals (..)
     , getSeals
     , sealsSymbol
