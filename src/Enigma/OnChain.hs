@@ -115,20 +115,20 @@ PlutusTx.makeLift ''ClearString
 data CubeParameter = CubeParameter
     { cubeId          :: !AssetClass -- ^ The cube native toiken policy hash.
     , stateMachineNft :: !AssetClass -- ^ The NFT that tracks this state machine.
-  --  , firstReward     :: !AssetClass -- ^ The reward you get by solving the first 3 puzzles.
-  --  , secondReward    :: !AssetClass -- ^ The reward you get by solving the first 6 puzzles.
-   -- , thirdReward     :: !AssetClass -- ^ The reward you get by solving the first 9 puzzles.
-   -- , lastReard       :: !AssetClass -- ^ The reward you get by solving the first 9 puzzles.
+    , firstReward     :: !AssetClass -- ^ The reward you get by solving the first 3 puzzles.
+    , secondReward    :: !AssetClass -- ^ The reward you get by solving the first 6 puzzles.
+    , thirdReward     :: !AssetClass -- ^ The reward you get by solving the first 9 puzzles.
+    , lastReard       :: !AssetClass -- ^ The reward you get by solving the first 9 puzzles.
     , firstAnswer     :: !HashedString   -- ^ Hash of the first answer.
---    , secondAnswer    :: !HashedString   -- ^ Hash of the first answer.
- --   , thirdAnswer     :: !HashedString   -- ^ Hash of the first answer.
---    , fourthAnswer    :: !HashedString   -- ^ Hash of the first answer.
---    , fifthAnswer     :: !HashedString   -- ^ Hash of the first answer.
---    , sixthAnswer     :: !HashedString   -- ^ Hash of the first answer.
- --   , seventhAnswer   :: !HashedString   -- ^ Hash of the first answer.
- --   , eightAnswer     :: !HashedString   -- ^ Hash of the first answer.
---    , ninethAnswer    :: !HashedString   -- ^ Hash of the first answer.
- --   , tenthAnswer     :: !HashedString   -- ^ Hash of the first answer.
+    , secondAnswer    :: !HashedString   -- ^ Hash of the first answer.
+    , thirdAnswer     :: !HashedString   -- ^ Hash of the first answer.
+    , fourthAnswer    :: !HashedString   -- ^ Hash of the first answer.
+    , fifthAnswer     :: !HashedString   -- ^ Hash of the first answer.
+    , sixthAnswer     :: !HashedString   -- ^ Hash of the first answer.
+    , seventhAnswer   :: !HashedString   -- ^ Hash of the first answer.
+    , eightAnswer     :: !HashedString   -- ^ Hash of the first answer.
+    , ninethAnswer    :: !HashedString   -- ^ Hash of the first answer.
+    , tenthAnswer     :: !HashedString   -- ^ Hash of the first answer.
     } deriving (Show, Generic, FromJSON, ToJSON)
 
 PlutusTx.makeLift ''CubeParameter
@@ -177,39 +177,26 @@ cubeDatum o f = do
     PlutusTx.fromData d
 
 {-# INLINABLE checkAnswer #-}
-checkAnswer:: CubeDatum -> HashedString -> CubeParameter -> Bool;
-checkAnswer (CubeDatum index) (HashedString answer) params
+checkAnswer:: Integer -> HashedString -> CubeParameter -> Bool;
+checkAnswer index (HashedString answer) params
 					| index == 0 = (firstAnswer params) == HashedString (sha2_256 answer)
-             --       | index == 1 = (secondAnswer params) == HashedString (sha2_256 answer)
-             --       | index == 2 = (thirdAnswer params) == HashedString (sha2_256 answer)
-            --        | index == 3 = (fourthAnswer params) == HashedString (sha2_256 answer)
-             --       | index == 4 = (fifthAnswer params) == HashedString (sha2_256 answer)
-            --        | index == 5 = (sixthAnswer params) == HashedString (sha2_256 answer)
-             --       | index == 6 = (seventhAnswer params) == HashedString (sha2_256 answer)
-             --       | index == 7 = (eightAnswer params) == HashedString (sha2_256 answer)
-             --       | index == 8 = (ninethAnswer params) == HashedString (sha2_256 answer)
-             --       | index == 9 = (tenthAnswer params) == HashedString (sha2_256 answer)
+                    | index == 1 = (secondAnswer params) == HashedString (sha2_256 answer)
+                    | index == 2 = (thirdAnswer params) == HashedString (sha2_256 answer)
+                    | index == 3 = (fourthAnswer params) == HashedString (sha2_256 answer)
+                    | index == 4 = (fifthAnswer params) == HashedString (sha2_256 answer)
+                    | index == 5 = (sixthAnswer params) == HashedString (sha2_256 answer)
+                    | index == 6 = (seventhAnswer params) == HashedString (sha2_256 answer)
+                    | index == 7 = (eightAnswer params) == HashedString (sha2_256 answer)
+                    | index == 8 = (ninethAnswer params) == HashedString (sha2_256 answer)
+                    | index == 9 = (tenthAnswer params) == HashedString (sha2_256 answer)
 					| otherwise = False
-
-{-# INLINABLE checkDatumValue #-}
-checkDatumValue:: Integer -> Bool
-checkDatumValue 0 = traceIfFalse "XXXXXXXXXXXXXXXXX0" False
-checkDatumValue 1 = traceIfFalse "XXXXXXXXXXXXXXXXX1" False
-checkDatumValue 2 = traceIfFalse "XXXXXXXXXXXXXXXXX2" False
-checkDatumValue 3 = traceIfFalse "XXXXXXXXXXXXXXXXX3" False
-checkDatumValue 4 = traceIfFalse "XXXXXXXXXXXXXXXXX4" False
-checkDatumValue 5 = traceIfFalse "XXXXXXXXXXXXXXXXX5" False
-checkDatumValue 6 = traceIfFalse "XXXXXXXXXXXXXXXXX6" False
-checkDatumValue 7 = traceIfFalse "XXXXXXXXXXXXXXXXX7" False
-checkDatumValue 8 = traceIfFalse "XXXXXXXXXXXXXXXXX8" False
-checkDatumValue 9 = traceIfFalse "XXXXXXXXXXXXXXXXX9" False
 
 {-# INLINABLE mkGameValidator #-}
 mkGameValidator :: CubeParameter -> CubeDatum -> CubeRedeemer -> ScriptContext -> Bool
-mkGameValidator parameters (CubeDatum newPuzzleIndex) (CubeRedeemer puzzleIndex answer) ctx = 
-    let isRightPuzzleIndex     = (outputDatum == CubeDatum puzzleIndex)
-        isRightNextPuzzleIndex = (outputDatum == CubeDatum (newPuzzleIndex - 1))
-        isRightAnswer          = checkAnswer outputDatum answer parameters
+mkGameValidator parameters (CubeDatum oldPuzzleIndex) (CubeRedeemer puzzleIndex answer) ctx = 
+    let isRightPuzzleIndex     = oldPuzzleIndex == puzzleIndex
+        isRightNextPuzzleIndex = (newDatumValue == (oldPuzzleIndex + 1))
+        isRightAnswer          = checkAnswer puzzleIndex answer parameters
         isBalanceRight         = True
     in traceIfFalse "Wrong puzzle index"            isRightPuzzleIndex && 
        traceIfFalse "Wrong next puzzle index state" isRightNextPuzzleIndex && 
@@ -229,10 +216,10 @@ mkGameValidator parameters (CubeDatum newPuzzleIndex) (CubeRedeemer puzzleIndex 
             [o] -> o
             _   -> traceError "Expected exactly one cube output"
 
-        outputDatum :: CubeDatum
-        outputDatum = case cubeDatum ownOutput (`findDatum` info) of
+        newDatumValue :: Integer
+        newDatumValue = case cubeDatum ownOutput (`findDatum` info) of
             Nothing -> traceError "Cube output datum not found"
-            Just d  -> d
+            Just (CubeDatum index)  -> index
 
 data Cube
 instance Scripts.ScriptType Cube where
@@ -297,26 +284,26 @@ create createParams = do
     let cubeParams = CubeParameter
             { cubeId          = AssetClass (cubeIdCurrency createParams, cubeIdTokenName createParams)
             , stateMachineNft = AssetClass (stateMachineNftCurrency createParams, stateMachineNftTokenName createParams)
-           -- , firstReward     = AssetClass (firstRewardCurrency createParams, firstRewardTokenName createParams)
-          --  , secondReward    = AssetClass (secondRewardCurrency createParams, secondRewardTokenName createParams)
-          --  , thirdReward     = AssetClass (thirdRewardCurrency createParams, thirdRewardTokenName createParams)
-         --   , lastReard       = AssetClass (lastReardCurrency createParams, lastReardTokenName createParams)
+            , firstReward     = AssetClass (firstRewardCurrency createParams, firstRewardTokenName createParams)
+            , secondReward    = AssetClass (secondRewardCurrency createParams, secondRewardTokenName createParams)
+            , thirdReward     = AssetClass (thirdRewardCurrency createParams, thirdRewardTokenName createParams)
+            , lastReard       = AssetClass (lastReardCurrency createParams, lastReardTokenName createParams)
             , firstAnswer     = HashedString (sha2_256 (fiAnswer createParams))
-      --      , secondAnswer    = HashedString (sha2_256 (seAnswer createParams))
-       --     , thirdAnswer     = HashedString (sha2_256 (thAnswer createParams))
-        --    , fourthAnswer    = HashedString (sha2_256 (foAnswer createParams))
-       --     , fifthAnswer     = HashedString (sha2_256 (fvAnswer createParams))
-        --    , sixthAnswer     = HashedString (sha2_256 (siAnswer createParams))
-        --    , seventhAnswer   = HashedString (sha2_256 (svAnswer createParams))
-         --   , eightAnswer     = HashedString (sha2_256 (eiAnswer createParams))
-         --   , ninethAnswer    = HashedString (sha2_256 (niAnswer createParams))
-         --   , tenthAnswer     = HashedString (sha2_256 (teAnswer createParams))
+            , secondAnswer    = HashedString (sha2_256 (seAnswer createParams))
+            , thirdAnswer     = HashedString (sha2_256 (thAnswer createParams))
+            , fourthAnswer    = HashedString (sha2_256 (foAnswer createParams))
+            , fifthAnswer     = HashedString (sha2_256 (fvAnswer createParams))
+            , sixthAnswer     = HashedString (sha2_256 (siAnswer createParams))
+            , seventhAnswer   = HashedString (sha2_256 (svAnswer createParams))
+            , eightAnswer     = HashedString (sha2_256 (eiAnswer createParams))
+            , ninethAnswer    = HashedString (sha2_256 (niAnswer createParams))
+            , tenthAnswer     = HashedString (sha2_256 (teAnswer createParams))
             }
-    let v    = assetClassValue (stateMachineNft cubeParams) 1
-               --assetClassValue (lastReard cubeParams)       1 <> 
-               --assetClassValue (thirdReward cubeParams)     1 <> 
-               --assetClassValue (secondReward cubeParams)    1 <> 
-               --assetClassValue (firstReward cubeParams)     1 <> 
+    let v    = assetClassValue (stateMachineNft cubeParams) 1 <>
+               assetClassValue (lastReard cubeParams)       1 <> 
+               assetClassValue (thirdReward cubeParams)     1 <> 
+               assetClassValue (secondReward cubeParams)    1 <> 
+               assetClassValue (firstReward cubeParams)     1  
                
     let tx   = Constraints.mustPayToTheScript datum v
     ledgerTx <- submitTxConstraints (cubeInst cubeParams) tx
@@ -339,6 +326,7 @@ create createParams = do
 
     void $ awaitSlot 10
 
+    -- Find current cube level.
     m <- findCubeOutput cubeParams
     case m of
         Nothing             -> logInfo @String  "game output not found"
@@ -392,20 +380,20 @@ solve solveParams = do
 
     let cube = CubeParameter { cubeId          = sCubeId solveParams
     , stateMachineNft = sStateMachineNft solveParams
-    --, firstReward     = sFirstReward solveParams
-   -- , secondReward    = sSecondReward solveParams
-   -- , thirdReward     = sThirdReward solveParams
-   -- , lastReard       = sLastReard solveParams
+    , firstReward     = sFirstReward solveParams
+    , secondReward    = sSecondReward solveParams
+    , thirdReward     = sThirdReward solveParams
+    , lastReard       = sLastReard solveParams
     , firstAnswer     = sFirstAnswer solveParams
- --   , secondAnswer    = sSecondAnswer solveParams
- --   , thirdAnswer     = sThirdAnswer solveParams
- --   , fourthAnswer    = sFourthAnswer solveParams
- --   , fifthAnswer     = sFifthAnswer solveParams
-  --  , sixthAnswer     = sSixthAnswer solveParams
-  --  , seventhAnswer   = sSeventhAnswer solveParams
-  --  , eightAnswer     = sEightAnswer solveParams
- --   , ninethAnswer    = sNinethAnswer solveParams
-  --  , tenthAnswer     = sTenthAnswer solveParams
+    , secondAnswer    = sSecondAnswer solveParams
+    , thirdAnswer     = sThirdAnswer solveParams
+    , fourthAnswer    = sFourthAnswer solveParams
+    , fifthAnswer     = sFifthAnswer solveParams
+    , sixthAnswer     = sSixthAnswer solveParams
+    , seventhAnswer   = sSeventhAnswer solveParams
+    , eightAnswer     = sEightAnswer solveParams
+    , ninethAnswer    = sNinethAnswer solveParams
+    , tenthAnswer     = sTenthAnswer solveParams
     }
 
     utxos <- utxoAt $ cubeAddress cube
@@ -478,8 +466,7 @@ test = runEmulatorTraceIO $ do
         }
     void $ Emulator.waitNSlots 1 
 
-    h3 <- activateContractWallet (Wallet 3) endpoints
-
+    h1 <- activateContractWallet (Wallet 1) endpoints
     callEndpoint @"create" h1 $ CreateParams
         { cubeIdCurrency  = "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e" 
         , cubeIdTokenName = "B"
@@ -504,7 +491,8 @@ test = runEmulatorTraceIO $ do
         , niAnswer    =  sha2_256(C.pack ("I"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e")  )
         , teAnswer    = sha2_256 (C.pack ("J"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e")  )
         }
-    void $ Emulator.waitNSlots 10
+    void $ Emulator.waitNSlots 1
+    h1 <- activateContractWallet (Wallet 1) endpoints
 
     callEndpoint @"solve" h1 $ SolveParams
         { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
@@ -526,8 +514,52 @@ test = runEmulatorTraceIO $ do
         , sPuzzleIndex     = 0
         , sAnswer          = sha2_256(C.pack ("A" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
     }
+    void $ Emulator.waitNSlots 1
+    h1 <- activateContractWallet (Wallet 1) endpoints
+    callEndpoint @"solve" h1 $ SolveParams
+        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
+        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
+        , sFirstReward     = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "A")
+        , sSecondReward    = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "D")
+        , sThirdReward     = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "F")
+        , sLastReard       = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "X")
+        , sFirstAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("A" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )  
+        , sSecondAnswer    = HashedString $ sha2_256 $ sha2_256(C.pack ("B" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sThirdAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("C" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sFourthAnswer    = HashedString $ sha2_256 $ sha2_256(C.pack ("D" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sFifthAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("E" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sSixthAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("F" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sSeventhAnswer   = HashedString $ sha2_256 $ sha2_256(C.pack ("G" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sEightAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("H" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sNinethAnswer    = HashedString $ sha2_256 $ sha2_256(C.pack ("I" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sTenthAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("J" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sPuzzleIndex     = 1
+        , sAnswer          = sha2_256(C.pack ("B" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+    }
     void $ Emulator.waitNSlots 1 
+    h1 <- activateContractWallet (Wallet 1) endpoints
 
+    callEndpoint @"solve" h1 $ SolveParams
+        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
+        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
+        , sFirstReward     = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "A")
+        , sSecondReward    = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "D")
+        , sThirdReward     = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "F")
+        , sLastReard       = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "X")
+        , sFirstAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("A" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )  
+        , sSecondAnswer    = HashedString $ sha2_256 $ sha2_256(C.pack ("B" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sThirdAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("C" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sFourthAnswer    = HashedString $ sha2_256 $ sha2_256(C.pack ("D" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sFifthAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("E" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sSixthAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("F" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sSeventhAnswer   = HashedString $ sha2_256 $ sha2_256(C.pack ("G" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sEightAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("H" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sNinethAnswer    = HashedString $ sha2_256 $ sha2_256(C.pack ("I" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sTenthAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("J" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+        , sPuzzleIndex     = 2
+        , sAnswer          = sha2_256(C.pack ("C" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+    }
+    void $ Emulator.waitNSlots 1 
 type CubeSchema = BlockchainActions .\/ Endpoint "create" CreateParams .\/ Endpoint "mint" MintParams .\/ Endpoint "solve" SolveParams
 
 endpoints :: Contract () CubeSchema Text ()
