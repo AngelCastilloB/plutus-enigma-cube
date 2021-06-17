@@ -114,9 +114,16 @@ PlutusTx.makeLift ''ClearString
 
 -- | The parameters for the enigma cubes state machine.
 data CubeParameter = CubeParameter
-    { cubeId          :: !AssetClass -- ^ The cube native toiken policy hash.
-    , stateMachineNft :: !AssetClass -- ^ The NFT that tracks this state machine.
-    , firstReward     :: !AssetClass -- ^ The reward you get by solving the first 3 puzzles.
+    { cubeId :: !AssetClass -- ^ The cube native toiken policy hash.
+    ,stateMachineNft :: !AssetClass -- ^ The NFT that tracks this state machine.
+    } deriving (Show, Generic, FromJSON, ToJSON)
+
+PlutusTx.makeLift ''CubeParameter
+
+-- | Datum data structure of the cube, the datum represents how many puzzles
+--   The user has unlocked.
+data CubeDatum = CubeDatum {
+      firstReward     :: !AssetClass -- ^ The reward you get by solving the first 3 puzzles.
     , secondReward    :: !AssetClass -- ^ The reward you get by solving the first 6 puzzles.
     , thirdReward     :: !AssetClass -- ^ The reward you get by solving the first 9 puzzles.
     , lastReard       :: !AssetClass -- ^ The reward you get by solving the first 9 puzzles.
@@ -130,24 +137,18 @@ data CubeParameter = CubeParameter
     , eightAnswer     :: !HashedString   -- ^ Hash of the first answer.
     , ninethAnswer    :: !HashedString   -- ^ Hash of the first answer.
     , tenthAnswer     :: !HashedString   -- ^ Hash of the first answer.
-    } deriving (Show, Generic, FromJSON, ToJSON)
-
-PlutusTx.makeLift ''CubeParameter
-
--- | Datum data structure of the cube, the datum represents how many puzzles
---   The user has unlocked.
-data CubeDatum = CubeDatum Integer
+    , currentPuzzleIndex :: Integer -- ^ The current puzzle index.
+}
     deriving Show
-
-instance Eq CubeDatum where
-    {-# INLINABLE (==) #-}
-    CubeDatum index == CubeDatum index' = (index == index')
 
 PlutusTx.unstableMakeIsData ''CubeDatum
 
 -- | The redeemer data structure for the cube. Its represented for the index
 --   of the puzzle to solve plust the pre image of the answer.
-data CubeRedeemer = CubeRedeemer Integer HashedString
+data CubeRedeemer = CubeRedeemer {
+        puzzleIndex:: !Integer
+        ,answerPreimage:: !HashedString
+    }
     deriving Show
 
 PlutusTx.unstableMakeIsData ''CubeRedeemer
@@ -178,23 +179,23 @@ cubeDatum o f = do
     PlutusTx.fromData d
 
 {-# INLINABLE checkAnswer #-}
-checkAnswer:: Integer -> HashedString -> CubeParameter -> Bool;
-checkAnswer index (HashedString answer) params
-					| index == 0 = (firstAnswer params) == HashedString (sha2_256 answer)
-                    | index == 1 = (secondAnswer params) == HashedString (sha2_256 answer)
-                    | index == 2 = (thirdAnswer params) == HashedString (sha2_256 answer)
-                    | index == 3 = (fourthAnswer params) == HashedString (sha2_256 answer)
-                    | index == 4 = (fifthAnswer params) == HashedString (sha2_256 answer)
-                    | index == 5 = (sixthAnswer params) == HashedString (sha2_256 answer)
-                    | index == 6 = (seventhAnswer params) == HashedString (sha2_256 answer)
-                    | index == 7 = (eightAnswer params) == HashedString (sha2_256 answer)
-                    | index == 8 = (ninethAnswer params) == HashedString (sha2_256 answer)
-                    | index == 9 = (tenthAnswer params) == HashedString (sha2_256 answer)
+checkAnswer:: Integer -> HashedString -> CubeDatum -> Bool;
+checkAnswer index (HashedString answer) datum
+					| index == 0 = (firstAnswer datum) == HashedString (sha2_256 answer)
+                    | index == 1 = (secondAnswer datum) == HashedString (sha2_256 answer)
+                    | index == 2 = (thirdAnswer datum) == HashedString (sha2_256 answer)
+                    | index == 3 = (fourthAnswer datum) == HashedString (sha2_256 answer)
+                    | index == 4 = (fifthAnswer datum) == HashedString (sha2_256 answer)
+                    | index == 5 = (sixthAnswer datum) == HashedString (sha2_256 answer)
+                    | index == 6 = (seventhAnswer datum) == HashedString (sha2_256 answer)
+                    | index == 7 = (eightAnswer datum) == HashedString (sha2_256 answer)
+                    | index == 8 = (ninethAnswer datum) == HashedString (sha2_256 answer)
+                    | index == 9 = (tenthAnswer datum) == HashedString (sha2_256 answer)
 					| otherwise = False
 
 {-# INLINABLE checkBalance #-}
-checkBalance:: CubeParameter -> TxInfo -> Integer -> Value -> Bool
-checkBalance params info index valueLockedByScript
+checkBalance:: CubeParameter -> CubeDatum -> TxInfo -> Integer -> Value -> Bool
+checkBalance params datum info index valueLockedByScript
                         | index <= 1 = firstStageBalance
                         | index <= 3 = secondStageBalance
                         | index <= 5 = thirdStageBalance
@@ -202,10 +203,10 @@ checkBalance params info index valueLockedByScript
                         | index == 9 = True -- All balance can be taken out of the script.
                         | otherwise = False
                         where
-                            firstRewardPaid    = (assetClassValueOf valueLockedByScript (firstReward params))     == 1
-                            secondRewardPaid   = (assetClassValueOf valueLockedByScript (secondReward params))    == 1
-                            thirdRewardPaid    = (assetClassValueOf valueLockedByScript (thirdReward params))     == 1
-                            lastRewardPaid     = (assetClassValueOf valueLockedByScript (lastReard params))       == 1
+                            firstRewardPaid    = (assetClassValueOf valueLockedByScript (firstReward datum))     == 1
+                            secondRewardPaid   = (assetClassValueOf valueLockedByScript (secondReward datum))    == 1
+                            thirdRewardPaid    = (assetClassValueOf valueLockedByScript (thirdReward datum))     == 1
+                            lastRewardPaid     = (assetClassValueOf valueLockedByScript (lastReard datum))       == 1
                             threadedNftPaid    = (assetClassValueOf valueLockedByScript (stateMachineNft params)) == 1
                             firstStageBalance  = firstRewardPaid && secondRewardPaid && thirdRewardPaid && lastRewardPaid && threadedNftPaid
                             secondStageBalance = secondRewardPaid && thirdRewardPaid && lastRewardPaid && threadedNftPaid  
@@ -214,12 +215,13 @@ checkBalance params info index valueLockedByScript
 
 {-# INLINABLE mkGameValidator #-}
 mkGameValidator :: CubeParameter -> CubeDatum -> CubeRedeemer -> ScriptContext -> Bool
-mkGameValidator parameters (CubeDatum oldPuzzleIndex) (CubeRedeemer puzzleIndex answer) ctx = 
-    let isRightPuzzleIndex     = oldPuzzleIndex == puzzleIndex
+mkGameValidator parameters oldDatum (CubeRedeemer puzzleIndex answer) ctx = 
+    let oldPuzzleIndex         = currentPuzzleIndex oldDatum
+        isRightPuzzleIndex     = oldPuzzleIndex == puzzleIndex
         isRightNextPuzzleIndex = (newDatumValue == (oldPuzzleIndex + 1))
-        isRightAnswer          = checkAnswer puzzleIndex answer parameters
+        isRightAnswer          = checkAnswer puzzleIndex answer oldDatum
         isRightCube            = (assetClassValueOf valueSpent (cubeId parameters)) == 1
-        isBalanceRight         = checkBalance parameters info oldPuzzleIndex valueLockedByScript
+        isBalanceRight         = checkBalance parameters oldDatum info oldPuzzleIndex valueLockedByScript
     in traceIfFalse "Wrong puzzle index"            isRightPuzzleIndex && 
        traceIfFalse "Wrong next puzzle index state" isRightNextPuzzleIndex && 
        traceIfFalse "Wrong answer"                  isRightAnswer &&
@@ -242,7 +244,7 @@ mkGameValidator parameters (CubeDatum oldPuzzleIndex) (CubeRedeemer puzzleIndex 
         newDatumValue :: Integer
         newDatumValue = case cubeDatum ownOutput (`findDatum` info) of
             Nothing -> traceError "Cube output datum not found"
-            Just (CubeDatum index)  -> index
+            Just datum  -> currentPuzzleIndex datum
 
         valueSpent :: Value
         valueSpent = Validation.valueSpent info
@@ -309,11 +311,8 @@ data CreateParams = CreateParams
 create :: forall w s. HasBlockchainActions s => CreateParams -> Contract w s Text ()
 create createParams = do
     pkh <- pubKeyHash <$> Contract.ownPubKey
-    let datum      = CubeDatum 0
-    let cubeParams = CubeParameter
-            { cubeId          = AssetClass (cubeIdCurrency createParams, cubeIdTokenName createParams)
-            , stateMachineNft = AssetClass (stateMachineNftCurrency createParams, stateMachineNftTokenName createParams)
-            , firstReward     = AssetClass (firstRewardCurrency createParams, firstRewardTokenName createParams)
+    let datum      = CubeDatum {
+             firstReward     = AssetClass (firstRewardCurrency createParams, firstRewardTokenName createParams)
             , secondReward    = AssetClass (secondRewardCurrency createParams, secondRewardTokenName createParams)
             , thirdReward     = AssetClass (thirdRewardCurrency createParams, thirdRewardTokenName createParams)
             , lastReard       = AssetClass (lastReardCurrency createParams, lastReardTokenName createParams)
@@ -327,12 +326,17 @@ create createParams = do
             , eightAnswer     = HashedString (sha2_256 (eiAnswer createParams))
             , ninethAnswer    = HashedString (sha2_256 (niAnswer createParams))
             , tenthAnswer     = HashedString (sha2_256 (teAnswer createParams))
+            , currentPuzzleIndex = 0
+    } 
+    let cubeParams = CubeParameter
+            { cubeId          = AssetClass (cubeIdCurrency createParams, cubeIdTokenName createParams)
+            , stateMachineNft = AssetClass (stateMachineNftCurrency createParams, stateMachineNftTokenName createParams)
             }
     let v    = assetClassValue (stateMachineNft cubeParams) 1 <>
-               assetClassValue (lastReard cubeParams)       1 <> 
-               assetClassValue (thirdReward cubeParams)     1 <> 
-               assetClassValue (secondReward cubeParams)    1 <> 
-               assetClassValue (firstReward cubeParams)     1  
+               assetClassValue (lastReard datum)       1 <> 
+               assetClassValue (thirdReward datum)     1 <> 
+               assetClassValue (secondReward datum)    1 <> 
+               assetClassValue (firstReward datum)     1  
                
     let tx   = Constraints.mustPayToTheScript datum v
     ledgerTx <- submitTxConstraints (cubeInst cubeParams) tx
@@ -360,7 +364,7 @@ create createParams = do
     case m of
         Nothing             -> logInfo @String  "game output not found"
         Just (oref, o, dat) -> case dat of
-            CubeDatum index ->  logInfo @String $ show index ++ show " " ++ show oref ++ " " ++  show o
+            datum ->  logInfo @String $ show datum ++ show " " ++ show oref ++ " " ++  show o
 
 data MintParams = MintParams
     { mpTokenName :: !TokenName
@@ -384,65 +388,69 @@ mint (MintParams name amount) = do
 data SolveParams = SolveParams
     { sCubeId          :: !AssetClass -- ^ The cube native toiken policy hash.
     , sStateMachineNft :: !AssetClass -- ^ The NFT that tracks this state machine.
-    , sFirstReward     :: !AssetClass -- ^ The reward you get by solving the first 3 puzzles.
-    , sSecondReward    :: !AssetClass -- ^ The reward you get by solving the first 6 puzzles.
-    , sThirdReward     :: !AssetClass -- ^ The reward you get by solving the first 9 puzzles.
-    , sLastReard       :: !AssetClass -- ^ The reward you get by solving the first 9 puzzles.
-    , sFirstAnswer     :: !HashedString   -- ^ Hash of the first answer.
-    , sSecondAnswer    :: !HashedString   -- ^ Hash of the first answer.
-    , sThirdAnswer     :: !HashedString   -- ^ Hash of the first answer.
-    , sFourthAnswer    :: !HashedString   -- ^ Hash of the first answer.
-    , sFifthAnswer     :: !HashedString   -- ^ Hash of the first answer.
-    , sSixthAnswer     :: !HashedString   -- ^ Hash of the first answer.
-    , sSeventhAnswer   :: !HashedString   -- ^ Hash of the first answer.
-    , sEightAnswer     :: !HashedString   -- ^ Hash of the first answer.
-    , sNinethAnswer    :: !HashedString   -- ^ Hash of the first answer.
-    , sTenthAnswer     :: !HashedString   -- ^ Hash of the first answer.
     , sPuzzleIndex :: !Integer
     , sAnswer    :: !ByteString
     } deriving (Generic, ToJSON, FromJSON)
 
 
+buildValue:: CubeParameter -> CubeDatum -> Integer -> Value -> Value
+buildValue params datum index currentCuneValue
+                        | index <= 1 = firstStageBalance
+                        | index <= 3 = secondStageBalance
+                        | index <= 5 = thirdStageBalance
+                        | index <= 7 = lastStageBalance                   
+                        | index == 9 = currentCuneValue -- if solve all puzzles claim all rewards
+                        | otherwise = currentCuneValue -- Define a better value for invalid cases
+                        where
+                            firstRewardPaid    = assetClassValue (firstReward datum) 1
+                            secondRewardPaid   = assetClassValue (secondReward datum) 1
+                            thirdRewardPaid    = assetClassValue (thirdReward datum) 1
+                            lastRewardPaid     = assetClassValue (lastReard datum) 1
+                            threadedNftPaid    = assetClassValue (stateMachineNft params) 1
+                            firstStageBalance  = firstRewardPaid <> secondRewardPaid <> thirdRewardPaid <> lastRewardPaid <> threadedNftPaid
+                            secondStageBalance = secondRewardPaid <> thirdRewardPaid <> lastRewardPaid <> threadedNftPaid  
+                            thirdStageBalance  = thirdRewardPaid <> lastRewardPaid <> threadedNftPaid  
+                            lastStageBalance   = lastRewardPaid <> threadedNftPaid  
+
 -- | The "redeem" contract endpoint.
 solve ::  forall w s. HasBlockchainActions s => SolveParams -> Contract w s Text ()
 solve solveParams = do
-
-    let cube = CubeParameter { cubeId          = sCubeId solveParams
-    , stateMachineNft = sStateMachineNft solveParams
-    , firstReward     = sFirstReward solveParams
-    , secondReward    = sSecondReward solveParams
-    , thirdReward     = sThirdReward solveParams
-    , lastReard       = sLastReard solveParams
-    , firstAnswer     = sFirstAnswer solveParams
-    , secondAnswer    = sSecondAnswer solveParams
-    , thirdAnswer     = sThirdAnswer solveParams
-    , fourthAnswer    = sFourthAnswer solveParams
-    , fifthAnswer     = sFifthAnswer solveParams
-    , sixthAnswer     = sSixthAnswer solveParams
-    , seventhAnswer   = sSeventhAnswer solveParams
-    , eightAnswer     = sEightAnswer solveParams
-    , ninethAnswer    = sNinethAnswer solveParams
-    , tenthAnswer     = sTenthAnswer solveParams
+    let cube = CubeParameter { 
+          cubeId = sCubeId solveParams
+        , stateMachineNft = sStateMachineNft solveParams
     }
-
+    pkh <- pubKeyHash <$> Contract.ownPubKey
     utxos <- utxoAt $ cubeAddress cube
-    let cubeDatum = CubeDatum ((sPuzzleIndex solveParams) + 1)
-    let cubeRedeemer = CubeRedeemer (sPuzzleIndex solveParams) (HashedString (sAnswer solveParams))
-    let totalValue = Prelude.foldMap (Tx.txOutValue . Tx.txOutTxOut) utxos
-    let orefs   = fst <$> Map.toList utxos
+    addressUtxos <- utxoAt $ pubKeyHashAddress pkh
 
-    Contract.logInfo $ show cubeDatum
-    Contract.logInfo $ show cubeRedeemer
-    Contract.logInfo $ show totalValue
+    let constriants = Constraints.unspentOutputs (utxos <> addressUtxos) <>
+                      Constraints.otherScript (Scripts.validatorScript (cubeInst cube))  <>
+                      Constraints.scriptInstanceLookups (cubeInst cube) <> 
+                      Constraints.ownPubKeyHash pkh  <> 
+                      Constraints.monetaryPolicy Seals.policy -- How to keep track of monetary policy of NFTs?
 
-    let lookups =  Constraints.unspentOutputs utxos <>
-                   Constraints.otherScript (Scripts.validatorScript (cubeInst cube))  <>
-                   Constraints.scriptInstanceLookups (cubeInst cube) <> 
-                   Constraints.monetaryPolicy Seals.policy
-        tx      = mconcat [Constraints.mustSpendScriptOutput oref (Redeemer  (PlutusTx.toData cubeRedeemer)) | oref <- orefs]
-           <> (Constraints.mustPayToTheScript cubeDatum totalValue)  
-    ledgerTx <- submitTxConstraintsWith @Cube lookups tx
-    void $ awaitTxConfirmed $ txId ledgerTx
+    m <- findCubeOutput cube
+    case m of
+        Nothing -> do
+            logInfo @String $ "Cube output not found for solve parameters "
+        Just (oref, o, dat) -> do
+            let cubeDatum = dat { currentPuzzleIndex = sPuzzleIndex solveParams + 1 }
+            let cubeRedeemer = CubeRedeemer (sPuzzleIndex solveParams) (HashedString (sAnswer solveParams))
+
+            let totalValue  = Prelude.foldMap (Tx.txOutValue . Tx.txOutTxOut) utxos
+            let orefs       = fst <$> Map.toList utxos
+            let payToSelf   = assetClassValue (cubeId cube) 1 -- We must pay to outselves the cube so we can prove ownership.
+            let payToScript = (buildValue cube cubeDatum (sPuzzleIndex solveParams) totalValue) <> payToSelf
+
+            Contract.logInfo $ show cubeDatum
+            Contract.logInfo $ show cubeRedeemer
+            Contract.logInfo $ show totalValue
+            Contract.logInfo $ show payToScript
+            Contract.logInfo $ show payToSelf
+
+            let tx = mconcat [Constraints.mustSpendScriptOutput oref (Redeemer (PlutusTx.toData cubeRedeemer)) | oref <- orefs] <> Constraints.mustPayToTheScript cubeDatum payToScript  <> Constraints.mustPayToPubKey pkh payToSelf <> Constraints.mustSpendAtLeast payToSelf  
+            ledgerTx <- submitTxConstraintsWith @Cube constriants tx
+            void $ awaitTxConfirmed $ txId ledgerTx
 
 test :: IO ()
 test = runEmulatorTraceIO $ do
@@ -526,69 +534,12 @@ test = runEmulatorTraceIO $ do
     callEndpoint @"solve" h1 $ SolveParams
         { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
         , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
-        , sFirstReward     = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "A")
-        , sSecondReward    = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "D")
-        , sThirdReward     = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "F")
-        , sLastReard       = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "X")
-        , sFirstAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("A" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )  
-        , sSecondAnswer    = HashedString $ sha2_256 $ sha2_256(C.pack ("B" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sThirdAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("C" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sFourthAnswer    = HashedString $ sha2_256 $ sha2_256(C.pack ("D" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sFifthAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("E" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sSixthAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("F" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sSeventhAnswer   = HashedString $ sha2_256 $ sha2_256(C.pack ("G" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sEightAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("H" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sNinethAnswer    = HashedString $ sha2_256 $ sha2_256(C.pack ("I" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sTenthAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("J" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
         , sPuzzleIndex     = 0
         , sAnswer          = sha2_256(C.pack ("A" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
     }
-    void $ Emulator.waitNSlots 1
-    h1 <- activateContractWallet (Wallet 1) endpoints
-    callEndpoint @"solve" h1 $ SolveParams
-        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
-        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
-        , sFirstReward     = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "A")
-        , sSecondReward    = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "D")
-        , sThirdReward     = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "F")
-        , sLastReard       = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "X")
-        , sFirstAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("A" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )  
-        , sSecondAnswer    = HashedString $ sha2_256 $ sha2_256(C.pack ("B" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sThirdAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("C" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sFourthAnswer    = HashedString $ sha2_256 $ sha2_256(C.pack ("D" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sFifthAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("E" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sSixthAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("F" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sSeventhAnswer   = HashedString $ sha2_256 $ sha2_256(C.pack ("G" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sEightAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("H" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sNinethAnswer    = HashedString $ sha2_256 $ sha2_256(C.pack ("I" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sTenthAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("J" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sPuzzleIndex     = 1
-        , sAnswer          = sha2_256(C.pack ("B" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-    }
-    void $ Emulator.waitNSlots 1 
-    h1 <- activateContractWallet (Wallet 1) endpoints
 
-    callEndpoint @"solve" h1 $ SolveParams
-        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
-        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
-        , sFirstReward     = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "A")
-        , sSecondReward    = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "D")
-        , sThirdReward     = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "F")
-        , sLastReard       = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "X")
-        , sFirstAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("A" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )  
-        , sSecondAnswer    = HashedString $ sha2_256 $ sha2_256(C.pack ("B" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sThirdAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("C" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sFourthAnswer    = HashedString $ sha2_256 $ sha2_256(C.pack ("D" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sFifthAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("E" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sSixthAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("F" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sSeventhAnswer   = HashedString $ sha2_256 $ sha2_256(C.pack ("G" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sEightAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("H" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sNinethAnswer    = HashedString $ sha2_256 $ sha2_256(C.pack ("I" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sTenthAnswer     = HashedString $ sha2_256 $ sha2_256(C.pack ("J" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-        , sPuzzleIndex     = 2
-        , sAnswer          = sha2_256(C.pack ("C" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-    }
-    void $ Emulator.waitNSlots 1 
+    void $ Emulator.waitNSlots 1
+    
 type CubeSchema = BlockchainActions .\/ Endpoint "create" CreateParams .\/ Endpoint "mint" MintParams .\/ Endpoint "solve" SolveParams
 
 endpoints :: Contract () CubeSchema Text ()
