@@ -93,6 +93,7 @@ import           Data.Word              (Word8)
 import qualified Ledger.Typed.Scripts     as Scripts hiding (validatorHash)
 
 import           Plutus.V1.Ledger.Address              (Address (..), scriptHashAddress)
+import qualified Ledger.Contexts          as Validation
 
 -- DATA TYPES -----------------------------------------------------------------
 
@@ -191,16 +192,38 @@ checkAnswer index (HashedString answer) params
                     | index == 9 = (tenthAnswer params) == HashedString (sha2_256 answer)
 					| otherwise = False
 
+{-# INLINABLE checkBalance #-}
+checkBalance:: CubeParameter -> TxInfo -> Integer -> Value -> Bool
+checkBalance params info index valueLockedByScript
+                        | index <= 1 = firstStageBalance
+                        | index <= 3 = secondStageBalance
+                        | index <= 5 = thirdStageBalance
+                        | index <= 7 = lastStageBalance                   
+                        | index == 9 = True -- All balance can be taken out of the script.
+                        | otherwise = False
+                        where
+                            firstRewardPaid    = (assetClassValueOf valueLockedByScript (firstReward params))     == 1
+                            secondRewardPaid   = (assetClassValueOf valueLockedByScript (secondReward params))    == 1
+                            thirdRewardPaid    = (assetClassValueOf valueLockedByScript (thirdReward params))     == 1
+                            lastRewardPaid     = (assetClassValueOf valueLockedByScript (lastReard params))       == 1
+                            threadedNftPaid    = (assetClassValueOf valueLockedByScript (stateMachineNft params)) == 1
+                            firstStageBalance  = firstRewardPaid && secondRewardPaid && thirdRewardPaid && lastRewardPaid && threadedNftPaid
+                            secondStageBalance = secondRewardPaid && thirdRewardPaid && lastRewardPaid && threadedNftPaid  
+                            thirdStageBalance  = thirdRewardPaid && lastRewardPaid && threadedNftPaid  
+                            lastStageBalance   = lastRewardPaid && threadedNftPaid  
+
 {-# INLINABLE mkGameValidator #-}
 mkGameValidator :: CubeParameter -> CubeDatum -> CubeRedeemer -> ScriptContext -> Bool
 mkGameValidator parameters (CubeDatum oldPuzzleIndex) (CubeRedeemer puzzleIndex answer) ctx = 
     let isRightPuzzleIndex     = oldPuzzleIndex == puzzleIndex
         isRightNextPuzzleIndex = (newDatumValue == (oldPuzzleIndex + 1))
         isRightAnswer          = checkAnswer puzzleIndex answer parameters
-        isBalanceRight         = True
+        isRightCube            = (assetClassValueOf valueSpent (cubeId parameters)) == 1
+        isBalanceRight         = checkBalance parameters info oldPuzzleIndex valueLockedByScript
     in traceIfFalse "Wrong puzzle index"            isRightPuzzleIndex && 
        traceIfFalse "Wrong next puzzle index state" isRightNextPuzzleIndex && 
        traceIfFalse "Wrong answer"                  isRightAnswer &&
+       traceIfFalse "The right cube was not found"  isRightCube &&
        traceIfFalse "Wrong balance"                 isBalanceRight 
     where
         info :: TxInfo
@@ -220,6 +243,12 @@ mkGameValidator parameters (CubeDatum oldPuzzleIndex) (CubeRedeemer puzzleIndex 
         newDatumValue = case cubeDatum ownOutput (`findDatum` info) of
             Nothing -> traceError "Cube output datum not found"
             Just (CubeDatum index)  -> index
+
+        valueSpent :: Value
+        valueSpent = Validation.valueSpent info
+
+        valueLockedByScript :: Value
+        valueLockedByScript = Validation.valueLockedBy info (Validation.ownHash ctx)
 
 data Cube
 instance Scripts.ScriptType Cube where
