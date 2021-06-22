@@ -297,14 +297,14 @@ create :: forall w s. HasBlockchainActions s => CreateParams -> Contract w s Tex
 create createParams = do
     pkh <- pubKeyHash <$> Contract.ownPubKey
     let datum      = CubeDatum {
-             firstReward     = AssetClass (firstRewardCurrency createParams, firstRewardTokenName createParams)
+              firstReward     = AssetClass (firstRewardCurrency createParams, firstRewardTokenName createParams)
             , secondReward    = AssetClass (secondRewardCurrency createParams, secondRewardTokenName createParams)
             , thirdReward     = AssetClass (thirdRewardCurrency createParams, thirdRewardTokenName createParams)
             , lastReard       = AssetClass (lastRewardCurrency createParams, lastRewardTokenName createParams)
             , firstAnswer     =  (sha2_256 (answer01 createParams))
             , secondAnswer    =  (sha2_256 (answer02 createParams))
-            , thirdAnswer     =  (sha2_256 (thAnswer createParams))
-            , fourthAnswer    =  (sha2_256 (foAnswer createParams))
+            , thirdAnswer     =  (sha2_256 (answer03 createParams))
+            , fourthAnswer    =  (sha2_256 (answer04 createParams))
             , fifthAnswer     =  (sha2_256 (answer05 createParams))
             , sixthAnswer     =  (sha2_256 (answer06 createParams))
             , seventhAnswer   =  (sha2_256 (answer07 createParams))
@@ -440,6 +440,23 @@ solve solveParams = do
             ledgerTx <- submitTxConstraintsWith @Cube constriants tx
             void $ awaitTxConfirmed $ txId ledgerTx
 
+data GetCurrentLevelParams = GetCurrentLevelParams
+    { gclCubeId          :: !AssetClass -- ^ The cube native toiken policy hash.
+    , gclStateMachineNft :: !AssetClass -- ^ The NFT that tracks this state machine.
+    } deriving (Generic, ToJSON, FromJSON)
+getCurrentLevel :: forall w s. HasBlockchainActions s => GetCurrentLevelParams -> Contract w s Text ()
+getCurrentLevel getLeveParams = do
+    let cubeParams = CubeParameter
+            { cubeId          = gclCubeId getLeveParams
+            , stateMachineNft = gclStateMachineNft getLeveParams
+            }
+    -- Find current cube level.
+    m <- findCubeOutput cubeParams
+    case m of
+        Nothing             -> logInfo @String  "game output not found"
+        Just (oref, o, dat) -> case dat of
+            datum ->  logInfo @String $ "Current Level: " ++ show (currentPuzzleIndex datum)
+
 test :: IO ()
 test = runEmulatorTraceIO $ do
     h1 <- activateContractWallet (Wallet 1) endpoints
@@ -563,81 +580,21 @@ test = runEmulatorTraceIO $ do
     
     h1 <- activateContractWallet (Wallet 1) endpoints
 
-    callEndpoint @"solve" h1 $ SolveParams
-        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
-        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
-        , sPuzzleIndex     = 4
-        , sAnswer          = sha2_256(C.pack ("E" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+    callEndpoint @"getCurrentLevel" h1 $ GetCurrentLevelParams
+        { gclCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
+        , gclStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
     }
-
-
     void $ Emulator.waitNSlots 1
-    
-    h1 <- activateContractWallet (Wallet 1) endpoints
-
-    callEndpoint @"solve" h1 $ SolveParams
-        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
-        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
-        , sPuzzleIndex     = 5
-        , sAnswer          = sha2_256(C.pack ("F" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-    }
 
 
-    void $ Emulator.waitNSlots 1
-    
-    h1 <- activateContractWallet (Wallet 1) endpoints
-
-    callEndpoint @"solve" h1 $ SolveParams
-        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
-        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
-        , sPuzzleIndex     = 6
-        , sAnswer          = sha2_256(C.pack ("G" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-    }
-
-    void $ Emulator.waitNSlots 1
-    
-    h1 <- activateContractWallet (Wallet 1) endpoints
-
-    callEndpoint @"solve" h1 $ SolveParams
-        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
-        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
-        , sPuzzleIndex     = 7
-        , sAnswer          = sha2_256(C.pack ("H" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-    }
-
-    void $ Emulator.waitNSlots 1
-    
-    h1 <- activateContractWallet (Wallet 1) endpoints
-
-    callEndpoint @"solve" h1 $ SolveParams
-        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
-        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
-        , sPuzzleIndex     = 8
-        , sAnswer          = sha2_256(C.pack ("I" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-    }
-
-    void $ Emulator.waitNSlots 1
-    
-    h1 <- activateContractWallet (Wallet 1) endpoints
-
-    callEndpoint @"solve" h1 $ SolveParams
-        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
-        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
-        , sPuzzleIndex     = 9
-        , sAnswer          = sha2_256(C.pack ("J" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
-    }
-
-    void $ Emulator.waitNSlots 1
-    
-
-type CubeSchema = BlockchainActions .\/ Endpoint "create" CreateParams .\/ Endpoint "mint" MintParams .\/ Endpoint "solve" SolveParams
+type CubeSchema = BlockchainActions .\/ Endpoint "create" CreateParams .\/ Endpoint "mint" MintParams .\/ Endpoint "solve" SolveParams .\/ Endpoint "getCurrentLevel" GetCurrentLevelParams
 
 endpoints :: Contract () CubeSchema Text ()
-endpoints = (first `select` second `select` third) >> endpoints
+endpoints = (first `select` second `select` third `select` fourth) >> endpoints
   where
     first  = endpoint @"create"  >>= create
     second = endpoint @"mint" >>= mint
     third  = endpoint @"solve" >>= solve
-
+    fourth  = endpoint @"getCurrentLevel" >>= getCurrentLevel
 --mkSchemaDefinitions ''CubeSchema
 $(mkKnownCurrencies [])
