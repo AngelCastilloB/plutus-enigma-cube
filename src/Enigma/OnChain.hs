@@ -197,11 +197,11 @@ checkAnswer index (HashedString answer) datum
 checkBalance:: CubeParameter -> CubeDatum -> TxInfo -> Integer -> Value -> Bool
 checkBalance params datum info index valueLockedByScript
                         | index <= 1 = firstStageBalance
-                        | index <= 3 = secondStageBalance
-                        | index <= 5 = thirdStageBalance
-                        | index <= 7 = lastStageBalance                   
-                        | index == 9 = True -- All balance can be taken out of the script.
-                        | otherwise = False
+                        | index <= 4 = secondStageBalance
+                        | index <= 7 = thirdStageBalance
+                        | index <= 8 = lastStageBalance                   
+                        | index >= 9 = True -- All balance can be taken out of the script.
+                        | otherwise  = False
                         where
                             firstRewardPaid    = (assetClassValueOf valueLockedByScript (firstReward datum))     == 1
                             secondRewardPaid   = (assetClassValueOf valueLockedByScript (secondReward datum))    == 1
@@ -396,10 +396,10 @@ data SolveParams = SolveParams
 buildValue:: CubeParameter -> CubeDatum -> Integer -> Value -> Value
 buildValue params datum index currentCuneValue
                         | index <= 1 = firstStageBalance
-                        | index <= 3 = secondStageBalance
-                        | index <= 5 = thirdStageBalance
-                        | index <= 7 = lastStageBalance                   
-                        | index == 9 = currentCuneValue -- if solve all puzzles claim all rewards
+                        | index <= 4 = secondStageBalance
+                        | index <= 7 = thirdStageBalance
+                        | index <= 8 = lastStageBalance
+                        | index == 9 = mempty -- if solve all puzzles claim all rewards
                         | otherwise = currentCuneValue -- Define a better value for invalid cases
                         where
                             firstRewardPaid    = assetClassValue (firstReward datum) 1
@@ -423,7 +423,8 @@ solve solveParams = do
     utxos <- utxoAt $ cubeAddress cube
     addressUtxos <- utxoAt $ pubKeyHashAddress pkh
 
-    let constriants = Constraints.unspentOutputs (utxos <> addressUtxos) <>
+    let constriants = Constraints.unspentOutputs utxos  <>
+                      Constraints.unspentOutputs addressUtxos <>
                       Constraints.otherScript (Scripts.validatorScript (cubeInst cube))  <>
                       Constraints.scriptInstanceLookups (cubeInst cube) <> 
                       Constraints.ownPubKeyHash pkh  <> 
@@ -440,7 +441,7 @@ solve solveParams = do
             let totalValue  = Prelude.foldMap (Tx.txOutValue . Tx.txOutTxOut) utxos
             let orefs       = fst <$> Map.toList utxos
             let payToSelf   = assetClassValue (cubeId cube) 1 -- We must pay to outselves the cube so we can prove ownership.
-            let payToScript = (buildValue cube cubeDatum (sPuzzleIndex solveParams) totalValue) <> payToSelf
+            let payToScript = (buildValue cube cubeDatum (sPuzzleIndex solveParams) totalValue)
 
             Contract.logInfo $ show cubeDatum
             Contract.logInfo $ show cubeRedeemer
@@ -448,7 +449,9 @@ solve solveParams = do
             Contract.logInfo $ show payToScript
             Contract.logInfo $ show payToSelf
 
-            let tx = mconcat [Constraints.mustSpendScriptOutput oref (Redeemer (PlutusTx.toData cubeRedeemer)) | oref <- orefs] <> Constraints.mustPayToTheScript cubeDatum payToScript  <> Constraints.mustPayToPubKey pkh payToSelf <> Constraints.mustSpendAtLeast payToSelf  
+            let tx = mconcat [Constraints.mustSpendScriptOutput oref (Redeemer (PlutusTx.toData cubeRedeemer)) | oref <- orefs] <>
+                              Constraints.mustPayToTheScript cubeDatum payToScript <> 
+                              Constraints.mustPayToPubKey pkh payToSelf
             ledgerTx <- submitTxConstraintsWith @Cube constriants tx
             void $ awaitTxConfirmed $ txId ledgerTx
 
@@ -459,7 +462,7 @@ test = runEmulatorTraceIO $ do
     h3 <- activateContractWallet (Wallet 3) endpoints
     callEndpoint @"mint" h1 $ MintParams
         { mpTokenName = "A"
-        , mpAmount    = 12
+        , mpAmount    = 1
         }
     void $ Emulator.waitNSlots 1 
 
@@ -467,7 +470,7 @@ test = runEmulatorTraceIO $ do
 
     callEndpoint @"mint" h1 $ MintParams
         { mpTokenName = "B"
-        , mpAmount    = 12
+        , mpAmount    = 1
         }
     void $ Emulator.waitNSlots 1 
 
@@ -475,7 +478,7 @@ test = runEmulatorTraceIO $ do
 
     callEndpoint @"mint" h1 $ MintParams
         { mpTokenName = "C"
-        , mpAmount    = 12
+        , mpAmount    = 1
         }
     void $ Emulator.waitNSlots 1 
 
@@ -483,7 +486,7 @@ test = runEmulatorTraceIO $ do
 
     callEndpoint @"mint" h1 $ MintParams
         { mpTokenName = "D"
-        , mpAmount    = 12
+        , mpAmount    = 1
         }
     void $ Emulator.waitNSlots 1 
 
@@ -491,7 +494,7 @@ test = runEmulatorTraceIO $ do
 
     callEndpoint @"mint" h1 $ MintParams
         { mpTokenName = "F"
-        , mpAmount    = 12
+        , mpAmount    = 1
         }
     void $ Emulator.waitNSlots 1 
 
@@ -499,7 +502,7 @@ test = runEmulatorTraceIO $ do
 
     callEndpoint @"mint" h1 $ MintParams
         { mpTokenName = "X"
-        , mpAmount    = 12
+        , mpAmount    = 1
         }
     void $ Emulator.waitNSlots 1 
 
@@ -539,7 +542,109 @@ test = runEmulatorTraceIO $ do
     }
 
     void $ Emulator.waitNSlots 1
+
+    h1 <- activateContractWallet (Wallet 1) endpoints
+
+    callEndpoint @"solve" h1 $ SolveParams
+        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
+        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
+        , sPuzzleIndex     = 1
+        , sAnswer          = sha2_256(C.pack ("B" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+    }
+
+    void $ Emulator.waitNSlots 1
+
+    h1 <- activateContractWallet (Wallet 1) endpoints
+
+    callEndpoint @"solve" h1 $ SolveParams
+        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
+        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
+        , sPuzzleIndex     = 2
+        , sAnswer          = sha2_256(C.pack ("C" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+    }
+
+    void $ Emulator.waitNSlots 1
     
+    h1 <- activateContractWallet (Wallet 1) endpoints
+
+    callEndpoint @"solve" h1 $ SolveParams
+        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
+        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
+        , sPuzzleIndex     = 3
+        , sAnswer          = sha2_256(C.pack ("D" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+    }
+
+    void $ Emulator.waitNSlots 1
+    
+    h1 <- activateContractWallet (Wallet 1) endpoints
+
+    callEndpoint @"solve" h1 $ SolveParams
+        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
+        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
+        , sPuzzleIndex     = 4
+        , sAnswer          = sha2_256(C.pack ("E" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+    }
+
+
+    void $ Emulator.waitNSlots 1
+    
+    h1 <- activateContractWallet (Wallet 1) endpoints
+
+    callEndpoint @"solve" h1 $ SolveParams
+        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
+        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
+        , sPuzzleIndex     = 5
+        , sAnswer          = sha2_256(C.pack ("F" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+    }
+
+
+    void $ Emulator.waitNSlots 1
+    
+    h1 <- activateContractWallet (Wallet 1) endpoints
+
+    callEndpoint @"solve" h1 $ SolveParams
+        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
+        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
+        , sPuzzleIndex     = 6
+        , sAnswer          = sha2_256(C.pack ("G" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+    }
+
+    void $ Emulator.waitNSlots 1
+    
+    h1 <- activateContractWallet (Wallet 1) endpoints
+
+    callEndpoint @"solve" h1 $ SolveParams
+        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
+        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
+        , sPuzzleIndex     = 7
+        , sAnswer          = sha2_256(C.pack ("H" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+    }
+
+    void $ Emulator.waitNSlots 1
+    
+    h1 <- activateContractWallet (Wallet 1) endpoints
+
+    callEndpoint @"solve" h1 $ SolveParams
+        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
+        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
+        , sPuzzleIndex     = 8
+        , sAnswer          = sha2_256(C.pack ("I" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+    }
+
+    void $ Emulator.waitNSlots 1
+    
+    h1 <- activateContractWallet (Wallet 1) endpoints
+
+    callEndpoint @"solve" h1 $ SolveParams
+        { sCubeId          = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "B")
+        , sStateMachineNft = AssetClass ("c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e", "C")
+        , sPuzzleIndex     = 9
+        , sAnswer          = sha2_256(C.pack ("J" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )
+    }
+
+    void $ Emulator.waitNSlots 1
+    
+
 type CubeSchema = BlockchainActions .\/ Endpoint "create" CreateParams .\/ Endpoint "mint" MintParams .\/ Endpoint "solve" SolveParams
 
 endpoints :: Contract () CubeSchema Text ()
