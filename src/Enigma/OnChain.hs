@@ -97,21 +97,6 @@ import qualified Ledger.Contexts          as Validation
 
 -- DATA TYPES -----------------------------------------------------------------
 
--- | The string representation of a hash.
-newtype HashedString = HashedString ByteString
-    deriving newtype (PlutusTx.IsData, Eq)
-    deriving stock (Show, Generic)
-    deriving anyclass (ToJSON, FromJSON)
-
-PlutusTx.makeLift ''HashedString
-
-newtype ClearString = ClearString ByteString
-    deriving newtype (PlutusTx.IsData, Eq)
-    deriving stock (Show, Generic)
-    deriving anyclass (ToJSON, FromJSON)
-
-PlutusTx.makeLift ''ClearString
-
 -- | The parameters for the enigma cubes state machine.
 data CubeParameter = CubeParameter
     { cubeId :: !AssetClass -- ^ The cube native toiken policy hash.
@@ -127,16 +112,16 @@ data CubeDatum = CubeDatum {
     , secondReward    :: !AssetClass -- ^ The reward you get by solving the first 6 puzzles.
     , thirdReward     :: !AssetClass -- ^ The reward you get by solving the first 9 puzzles.
     , lastReard       :: !AssetClass -- ^ The reward you get by solving the first 9 puzzles.
-    , firstAnswer     :: !HashedString   -- ^ Hash of the first answer.
-    , secondAnswer    :: !HashedString   -- ^ Hash of the first answer.
-    , thirdAnswer     :: !HashedString   -- ^ Hash of the first answer.
-    , fourthAnswer    :: !HashedString   -- ^ Hash of the first answer.
-    , fifthAnswer     :: !HashedString   -- ^ Hash of the first answer.
-    , sixthAnswer     :: !HashedString   -- ^ Hash of the first answer.
-    , seventhAnswer   :: !HashedString   -- ^ Hash of the first answer.
-    , eightAnswer     :: !HashedString   -- ^ Hash of the first answer.
-    , ninethAnswer    :: !HashedString   -- ^ Hash of the first answer.
-    , tenthAnswer     :: !HashedString   -- ^ Hash of the first answer.
+    , firstAnswer     :: !ByteString   -- ^ Hash of the first answer.
+    , secondAnswer    :: !ByteString   -- ^ Hash of the first answer.
+    , thirdAnswer     :: !ByteString   -- ^ Hash of the first answer.
+    , fourthAnswer    :: !ByteString   -- ^ Hash of the first answer.
+    , fifthAnswer     :: !ByteString   -- ^ Hash of the first answer.
+    , sixthAnswer     :: !ByteString   -- ^ Hash of the first answer.
+    , seventhAnswer   :: !ByteString   -- ^ Hash of the first answer.
+    , eightAnswer     :: !ByteString   -- ^ Hash of the first answer.
+    , ninethAnswer    :: !ByteString   -- ^ Hash of the first answer.
+    , tenthAnswer     :: !ByteString   -- ^ Hash of the first answer.
     , currentPuzzleIndex :: Integer -- ^ The current puzzle index.
 }
     deriving Show
@@ -147,7 +132,7 @@ PlutusTx.unstableMakeIsData ''CubeDatum
 --   of the puzzle to solve plust the pre image of the answer.
 data CubeRedeemer = CubeRedeemer {
         puzzleIndex:: !Integer
-        ,answerPreimage:: !HashedString
+        ,answerPreimage:: !ByteString
     }
     deriving Show
 
@@ -179,18 +164,18 @@ cubeDatum o f = do
     PlutusTx.fromData d
 
 {-# INLINABLE checkAnswer #-}
-checkAnswer:: Integer -> HashedString -> CubeDatum -> Bool;
-checkAnswer index (HashedString answer) datum
-					| index == 0 = (firstAnswer datum) == HashedString (sha2_256 answer)
-                    | index == 1 = (secondAnswer datum) == HashedString (sha2_256 answer)
-                    | index == 2 = (thirdAnswer datum) == HashedString (sha2_256 answer)
-                    | index == 3 = (fourthAnswer datum) == HashedString (sha2_256 answer)
-                    | index == 4 = (fifthAnswer datum) == HashedString (sha2_256 answer)
-                    | index == 5 = (sixthAnswer datum) == HashedString (sha2_256 answer)
-                    | index == 6 = (seventhAnswer datum) == HashedString (sha2_256 answer)
-                    | index == 7 = (eightAnswer datum) == HashedString (sha2_256 answer)
-                    | index == 8 = (ninethAnswer datum) == HashedString (sha2_256 answer)
-                    | index == 9 = (tenthAnswer datum) == HashedString (sha2_256 answer)
+checkAnswer:: Integer -> ByteString -> CubeDatum -> Bool;
+checkAnswer index answer datum
+					| index == 0 = (firstAnswer datum) ==  (sha2_256 answer)
+                    | index == 1 = (secondAnswer datum) ==  (sha2_256 answer)
+                    | index == 2 = (thirdAnswer datum) ==  (sha2_256 answer)
+                    | index == 3 = (fourthAnswer datum) ==  (sha2_256 answer)
+                    | index == 4 = (fifthAnswer datum) ==  (sha2_256 answer)
+                    | index == 5 = (sixthAnswer datum) ==  (sha2_256 answer)
+                    | index == 6 = (seventhAnswer datum) ==  (sha2_256 answer)
+                    | index == 7 = (eightAnswer datum) ==  (sha2_256 answer)
+                    | index == 8 = (ninethAnswer datum) ==  (sha2_256 answer)
+                    | index == 9 = (tenthAnswer datum) ==  (sha2_256 answer)
 					| otherwise = False
 
 {-# INLINABLE checkBalance #-}
@@ -294,18 +279,18 @@ data CreateParams = CreateParams
     , secondRewardTokenName :: !TokenName 
     , thirdRewardCurrency  :: !CurrencySymbol 
     , thirdRewardTokenName :: !TokenName 
-    , lastReardCurrency  :: !CurrencySymbol 
-    , lastReardTokenName :: !TokenName 
-    , fiAnswer     :: !ByteString   -- ^ Hash of the first answer.
-    , seAnswer    :: !ByteString   -- ^ Hash of the first answer.
-    , thAnswer     :: !ByteString   -- ^ Hash of the first answer.
-    , foAnswer    :: !ByteString   -- ^ Hash of the first answer.
-    , fvAnswer     :: !ByteString   -- ^ Hash of the first answer.
-    , siAnswer     :: !ByteString   -- ^ Hash of the first answer.
-    , svAnswer   :: !ByteString   -- ^ Hash of the first answer.
-    , eiAnswer     :: !ByteString   -- ^ Hash of the first answer.
-    , niAnswer    :: !ByteString   -- ^ Hash of the first answer.
-    , teAnswer     :: !ByteString   -- ^ Hash of the first answer.
+    , lastRewardCurrency  :: !CurrencySymbol 
+    , lastRewardTokenName :: !TokenName 
+    , answer01     :: !ByteString   -- ^ Hash of the first answer.
+    , answer02    :: !ByteString   -- ^ Hash of the first answer.
+    , answer03     :: !ByteString   -- ^ Hash of the first answer.
+    , answer04    :: !ByteString   -- ^ Hash of the first answer.
+    , answer05     :: !ByteString   -- ^ Hash of the first answer.
+    , answer06     :: !ByteString   -- ^ Hash of the first answer.
+    , answer07   :: !ByteString   -- ^ Hash of the first answer.
+    , answer08     :: !ByteString   -- ^ Hash of the first answer.
+    , answer09    :: !ByteString   -- ^ Hash of the first answer.
+    , answer10     :: !ByteString   -- ^ Hash of the first answer.
     } deriving (Show, Generic, FromJSON, ToJSON, ToSchema)
 
 create :: forall w s. HasBlockchainActions s => CreateParams -> Contract w s Text ()
@@ -315,17 +300,17 @@ create createParams = do
              firstReward     = AssetClass (firstRewardCurrency createParams, firstRewardTokenName createParams)
             , secondReward    = AssetClass (secondRewardCurrency createParams, secondRewardTokenName createParams)
             , thirdReward     = AssetClass (thirdRewardCurrency createParams, thirdRewardTokenName createParams)
-            , lastReard       = AssetClass (lastReardCurrency createParams, lastReardTokenName createParams)
-            , firstAnswer     = HashedString (sha2_256 (fiAnswer createParams))
-            , secondAnswer    = HashedString (sha2_256 (seAnswer createParams))
-            , thirdAnswer     = HashedString (sha2_256 (thAnswer createParams))
-            , fourthAnswer    = HashedString (sha2_256 (foAnswer createParams))
-            , fifthAnswer     = HashedString (sha2_256 (fvAnswer createParams))
-            , sixthAnswer     = HashedString (sha2_256 (siAnswer createParams))
-            , seventhAnswer   = HashedString (sha2_256 (svAnswer createParams))
-            , eightAnswer     = HashedString (sha2_256 (eiAnswer createParams))
-            , ninethAnswer    = HashedString (sha2_256 (niAnswer createParams))
-            , tenthAnswer     = HashedString (sha2_256 (teAnswer createParams))
+            , lastReard       = AssetClass (lastRewardCurrency createParams, lastRewardTokenName createParams)
+            , firstAnswer     =  (sha2_256 (answer01 createParams))
+            , secondAnswer    =  (sha2_256 (answer02 createParams))
+            , thirdAnswer     =  (sha2_256 (thAnswer createParams))
+            , fourthAnswer    =  (sha2_256 (foAnswer createParams))
+            , fifthAnswer     =  (sha2_256 (answer05 createParams))
+            , sixthAnswer     =  (sha2_256 (answer06 createParams))
+            , seventhAnswer   =  (sha2_256 (answer07 createParams))
+            , eightAnswer     =  (sha2_256 (answer08 createParams))
+            , ninethAnswer    =  (sha2_256 (answer09 createParams))
+            , tenthAnswer     =  (sha2_256 (answer10 createParams))
             , currentPuzzleIndex = 0
     } 
     let cubeParams = CubeParameter
@@ -346,16 +331,16 @@ create createParams = do
 
     logInfo @Address $ cubeAddress cubeParams
     
-    logInfo @ByteString $ fiAnswer createParams
-    logInfo @ByteString $ seAnswer createParams
-    logInfo @ByteString $ thAnswer createParams
-    logInfo @ByteString $ foAnswer createParams
-    logInfo @ByteString $ fvAnswer createParams
-    logInfo @ByteString $ siAnswer createParams
-    logInfo @ByteString $ svAnswer createParams
-    logInfo @ByteString $ eiAnswer createParams
-    logInfo @ByteString $ niAnswer createParams
-    logInfo @ByteString $ teAnswer createParams
+    logInfo @ByteString $ answer01 createParams
+    logInfo @ByteString $ answer02 createParams
+    logInfo @ByteString $ answer03 createParams
+    logInfo @ByteString $ answer04 createParams
+    logInfo @ByteString $ answer05 createParams
+    logInfo @ByteString $ answer06 createParams
+    logInfo @ByteString $ answer07 createParams
+    logInfo @ByteString $ answer08 createParams
+    logInfo @ByteString $ answer09 createParams
+    logInfo @ByteString $ answer10 createParams
 
     void $ awaitSlot 10
 
@@ -436,7 +421,7 @@ solve solveParams = do
             logInfo @String $ "Cube output not found for solve parameters "
         Just (oref, o, dat) -> do
             let cubeDatum = dat { currentPuzzleIndex = sPuzzleIndex solveParams + 1 }
-            let cubeRedeemer = CubeRedeemer (sPuzzleIndex solveParams) (HashedString (sAnswer solveParams))
+            let cubeRedeemer = CubeRedeemer (sPuzzleIndex solveParams) (sAnswer solveParams)
 
             let totalValue  = Prelude.foldMap (Tx.txOutValue . Tx.txOutTxOut) utxos
             let orefs       = fst <$> Map.toList utxos
@@ -518,18 +503,18 @@ test = runEmulatorTraceIO $ do
         , secondRewardTokenName = "D"
         , thirdRewardCurrency  = "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e"
         , thirdRewardTokenName = "F"
-        , lastReardCurrency  = "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e"
-        , lastReardTokenName = "X" 
-        , fiAnswer     =  sha2_256(C.pack ("A" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )  
-        , seAnswer    = sha2_256 (C.pack ("B"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") ) 
-        , thAnswer     = sha2_256 (C.pack ("C"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") ) 
-        , foAnswer    = sha2_256 (C.pack ("D"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e")  )
-        , fvAnswer     = sha2_256 (C.pack ("E"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e")  )
-        , siAnswer    = sha2_256 (C.pack ("F"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e")  )
-        , svAnswer  = sha2_256 (C.pack ("G"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e")  )
-        , eiAnswer     = sha2_256 (C.pack ("H"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e")  )
-        , niAnswer    =  sha2_256(C.pack ("I"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e")  )
-        , teAnswer    = sha2_256 (C.pack ("J"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e")  )
+        , lastRewardCurrency  = "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e"
+        , lastRewardTokenName = "X" 
+        , answer01     =  sha2_256(C.pack ("A" ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") )  
+        , answer02    = sha2_256 (C.pack ("B"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") ) 
+        , answer03     = sha2_256 (C.pack ("C"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e") ) 
+        , answer04    = sha2_256 (C.pack ("D"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e")  )
+        , answer05     = sha2_256 (C.pack ("E"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e")  )
+        , answer06    = sha2_256 (C.pack ("F"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e")  )
+        , answer07  = sha2_256 (C.pack ("G"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e")  )
+        , answer08     = sha2_256 (C.pack ("H"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e")  )
+        , answer09    =  sha2_256(C.pack ("I"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e")  )
+        , answer10    = sha2_256 (C.pack ("J"  ++ "c6f5d508c16c5602dbbd5c4c5618064f66b31a2e99002b70d116a645343c137e")  )
         }
     void $ Emulator.waitNSlots 1
     h1 <- activateContractWallet (Wallet 1) endpoints
